@@ -42,11 +42,18 @@ impl Sider {
                 stream.flush().unwrap();
             }
             if let Command::GET = req.command {
-                let default = String::new();
-                let request_value = cache.get(&req.key).unwrap_or_else(|| &default);
-                let response = format!("${}\r\n{}\r\n", request_value.len(), request_value);
-                stream.write_all(response.as_bytes()).unwrap();
-                stream.flush().unwrap();
+                let request_value = cache.get(&req.key);
+                match request_value {
+                    Some(value) => {
+                        let response = format!("${}\r\n{}\r\n", value.len(), value);
+                        stream.write_all(response.as_bytes()).unwrap();
+                        stream.flush().unwrap();
+                    }
+                    None => {
+                        stream.write_all(b"$-1\r\n").unwrap();
+                        stream.flush().unwrap();
+                    }
+                }
             }
         }
     }
