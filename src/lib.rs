@@ -117,6 +117,21 @@ impl Sider {
                         stream.flush().unwrap();
                     }
                 }
+            } else if let Command::DEL = req.command {
+                let key_to_delete = cache.get(&req.key);
+                match key_to_delete {
+                    Some(_) => {
+                        cache.remove(&req.key);
+                        let response = ":1\r\n";
+                        stream.write_all(response.as_bytes()).unwrap();
+                        stream.flush().unwrap();
+                    }
+                    None => {
+                        let response = ":0\r\n";
+                        stream.write_all(response.as_bytes()).unwrap();
+                        stream.flush().unwrap();
+                    }
+                }
             }
         }
     }
@@ -125,10 +140,13 @@ impl Sider {
 pub enum Command {
     SET,
     GET,
+    DEL,
     LLEN,
     SADD,
     RPUSH,
     LRANGE,
+    INCR,
+    DECR,
     EMPTY,
 }
 #[derive(Debug)]
@@ -160,6 +178,7 @@ pub fn parse_resp(s: &String) -> Request {
             match splitted[i].into() {
                 "SET" => command = Command::SET,
                 "GET" => command = Command::GET,
+                "DEL" => command = Command::DEL,
                 // "LLEN" => command = Command::LLEN,
                 // "SADD" => command = Command::SADD,
                 "RPUSH" => command = Command::RPUSH,
