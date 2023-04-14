@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Write},
-    net::TcpListener,
+    net::{TcpListener, TcpStream},
     time::Duration,
 };
 
@@ -20,21 +20,7 @@ impl Sider {
         let mut cache: HashMap<String, String> = HashMap::new();
         for stream in self.listener.incoming() {
             let mut stream = stream.unwrap();
-            stream
-                .set_read_timeout(Some(Duration::from_secs(1)))
-                .unwrap();
-            stream.flush().unwrap();
-            let mut buf_reader = BufReader::new(&mut stream);
-            let mut first_line = String::new();
-            buf_reader.read_line(&mut first_line).unwrap();
-            let size = first_line[1..2].parse::<usize>().unwrap();
-            let mut resp = vec![first_line];
-            for _ in 1..=size * 2 {
-                let mut line = String::new();
-                buf_reader.read_line(&mut line).unwrap();
-                resp.push(line);
-            }
-            let resp = resp.join("");
+            let resp = construct_resp(&mut stream);
             let req = parse_resp(&resp);
             if let Command::SET = req.command {
                 cache.insert(req.key.clone(), req.value[0].clone());
@@ -102,4 +88,19 @@ pub fn parse_resp(s: &String) -> Request {
         key,
         value,
     }
+}
+
+pub fn construct_resp(stream: &mut TcpStream) -> String {
+    let mut buf_reader = BufReader::new(stream);
+    let mut first_line = String::new();
+    buf_reader.read_line(&mut first_line).unwrap();
+    let size = first_line[1..2].parse::<usize>().unwrap();
+    let mut resp = vec![first_line];
+    for _ in 1..=size * 2 {
+        let mut line = String::new();
+        buf_reader.read_line(&mut line).unwrap();
+        resp.push(line);
+    }
+    let resp = resp.join("");
+    resp
 }
