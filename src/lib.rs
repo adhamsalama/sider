@@ -24,112 +24,119 @@ impl Sider {
             let resp = construct_resp(&mut stream);
             let req = parse_resp(&resp);
             // println!("{:?}", req);
-            if let Command::SET = req.command {
-                let value = req.value[0].clone();
-                cache.insert(req.key.clone(), DataType::String(value));
-                stream.write_all(b"+OK\r\n").unwrap();
-                stream.flush().unwrap();
-            } else if let Command::GET = req.command {
-                let request_value = cache.get(&req.key);
-                match request_value {
-                    Some(value) => match value {
-                        DataType::String(value) => {
-                            let response = format!("${}\r\n{}\r\n", value.len(), value);
-                            stream.write_all(response.as_bytes()).unwrap();
-                            stream.flush().unwrap();
-                        }
-
-                        _ => {
-                            let response = error_response.clone();
-                            stream.write_all(response.as_bytes()).unwrap();
-                            stream.flush().unwrap();
-                        }
-                    },
-                    None => {
-                        stream.write_all(b"$-1\r\n").unwrap();
-                        stream.flush().unwrap();
-                    }
+            match req.command {
+                Command::SET => {
+                    let value = req.value[0].clone();
+                    cache.insert(req.key.clone(), DataType::String(value));
+                    stream.write_all(b"+OK\r\n").unwrap();
+                    stream.flush().unwrap();
                 }
-            } else if let Command::RPUSH = req.command {
-                let value = cache.get_mut(&req.key);
-                match value {
-                    Some(existing) => match existing {
-                        DataType::List(v) => {
-                            // println!("{:?}", v);
-                            for value in &req.value {
-                                v.push(value.to_string());
+                Command::GET => {
+                    let request_value = cache.get(&req.key);
+                    match request_value {
+                        Some(value) => match value {
+                            DataType::String(value) => {
+                                let response = format!("${}\r\n{}\r\n", value.len(), value);
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
                             }
-                            let response = format!(":{}\r\n", v.len());
-                            stream.write_all(response.as_bytes()).unwrap();
+
+                            _ => {
+                                let response = error_response.clone();
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
+                            }
+                        },
+                        None => {
+                            stream.write_all(b"$-1\r\n").unwrap();
                             stream.flush().unwrap();
                         }
-                        _ => {
-                            let response = error_response.to_string();
-                            stream.write_all(response.as_bytes()).unwrap();
-                            stream.flush().unwrap();
-                        }
-                    },
-                    None => {
-                        let size = req.value.len();
-                        cache.insert(req.key.clone(), DataType::List(req.value));
-                        // println!("list now = {:?}", cache.get(&req.key).unwrap());
-                        let response = format!(":{}\r\n", size);
-                        stream.write_all(response.as_bytes()).unwrap();
-                        stream.flush().unwrap();
                     }
                 }
-            } else if let Command::LRANGE = req.command {
-                let value = cache.get(&req.key);
-                match value {
-                    Some(existing) => match existing {
-                        DataType::List(value) => {
-                            // println!("list value {:?}", value);
-                            let start = req.value[0].parse::<usize>().unwrap();
-                            let end = req.value[1].parse::<i64>().unwrap();
-                            let slice: &[String];
-                            if end == -1 {
-                                slice = &value[start..];
-                            } else {
-                                let mut end = end + 1;
-                                if end >= value.len().try_into().unwrap() {
-                                    end = value.len().try_into().unwrap();
+                Command::RPUSH => {
+                    let value = cache.get_mut(&req.key);
+                    match value {
+                        Some(existing) => match existing {
+                            DataType::List(v) => {
+                                // println!("{:?}", v);
+                                for value in &req.value {
+                                    v.push(value.to_string());
                                 }
-                                slice = &value[start..end.try_into().unwrap()];
+                                let response = format!(":{}\r\n", v.len());
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
                             }
-                            let mut response = format!("*{}\r\n", slice.len());
-                            for value in slice {
-                                response = format!("{}${}\r\n{}\r\n", response, value.len(), value);
+                            _ => {
+                                let response = error_response.to_string();
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
                             }
-                            // println!("{response}");
+                        },
+                        None => {
+                            let size = req.value.len();
+                            cache.insert(req.key.clone(), DataType::List(req.value));
+                            // println!("list now = {:?}", cache.get(&req.key).unwrap());
+                            let response = format!(":{}\r\n", size);
                             stream.write_all(response.as_bytes()).unwrap();
                             stream.flush().unwrap();
                         }
-                        _ => {
-                            let response = error_response.clone();
-                            stream.write_all(response.as_bytes()).unwrap();
-                            stream.flush().unwrap();
-                        }
-                    },
-
-                    None => {
-                        let response = "*0\r\n";
-                        stream.write_all(response.as_bytes()).unwrap();
-                        stream.flush().unwrap();
                     }
                 }
-            } else if let Command::DEL = req.command {
-                let key_to_delete = cache.get(&req.key);
-                match key_to_delete {
-                    Some(_) => {
-                        cache.remove(&req.key);
-                        let response = ":1\r\n";
-                        stream.write_all(response.as_bytes()).unwrap();
-                        stream.flush().unwrap();
+                Command::LRANGE => {
+                    let value = cache.get(&req.key);
+                    match value {
+                        Some(existing) => match existing {
+                            DataType::List(value) => {
+                                // println!("list value {:?}", value);
+                                let start = req.value[0].parse::<usize>().unwrap();
+                                let end = req.value[1].parse::<i64>().unwrap();
+                                let slice: &[String];
+                                if end == -1 {
+                                    slice = &value[start..];
+                                } else {
+                                    let mut end = end + 1;
+                                    if end >= value.len().try_into().unwrap() {
+                                        end = value.len().try_into().unwrap();
+                                    }
+                                    slice = &value[start..end.try_into().unwrap()];
+                                }
+                                let mut response = format!("*{}\r\n", slice.len());
+                                for value in slice {
+                                    response =
+                                        format!("{}${}\r\n{}\r\n", response, value.len(), value);
+                                }
+                                // println!("{response}");
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
+                            }
+                            _ => {
+                                let response = error_response.clone();
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
+                            }
+                        },
+
+                        None => {
+                            let response = "*0\r\n";
+                            stream.write_all(response.as_bytes()).unwrap();
+                            stream.flush().unwrap();
+                        }
                     }
-                    None => {
-                        let response = ":0\r\n";
-                        stream.write_all(response.as_bytes()).unwrap();
-                        stream.flush().unwrap();
+                }
+                Command::DEL => {
+                    let key_to_delete = cache.get(&req.key);
+                    match key_to_delete {
+                        Some(_) => {
+                            cache.remove(&req.key);
+                            let response = ":1\r\n";
+                            stream.write_all(response.as_bytes()).unwrap();
+                            stream.flush().unwrap();
+                        }
+                        None => {
+                            let response = ":0\r\n";
+                            stream.write_all(response.as_bytes()).unwrap();
+                            stream.flush().unwrap();
+                        }
                     }
                 }
             }
@@ -141,13 +148,12 @@ pub enum Command {
     SET,
     GET,
     DEL,
-    LLEN,
-    SADD,
+    // LLEN,
+    // SADD,
     RPUSH,
     LRANGE,
-    INCR,
-    DECR,
-    EMPTY,
+    // INCR,
+    // DECR,
 }
 #[derive(Debug)]
 pub struct Request {
@@ -167,7 +173,7 @@ pub enum DataType {
 pub fn parse_resp(s: &String) -> Request {
     let splitted: Vec<&str> = s.split("\r\n").collect();
     let size = splitted[0][1..].parse::<usize>().unwrap();
-    let mut command: Command = Command::EMPTY;
+    let mut command: Option<Command> = None;
     let mut key = String::new();
     let mut value: Vec<String> = vec![];
     for i in 1..=size * 2 {
@@ -176,13 +182,13 @@ pub fn parse_resp(s: &String) -> Request {
         }
         if i == 2 {
             match splitted[i].into() {
-                "SET" => command = Command::SET,
-                "GET" => command = Command::GET,
-                "DEL" => command = Command::DEL,
+                "SET" => command = Some(Command::SET),
+                "GET" => command = Some(Command::GET),
+                "DEL" => command = Some(Command::DEL),
                 // "LLEN" => command = Command::LLEN,
                 // "SADD" => command = Command::SADD,
-                "RPUSH" => command = Command::RPUSH,
-                "LRANGE" => command = Command::LRANGE,
+                "RPUSH" => command = Some(Command::RPUSH),
+                "LRANGE" => command = Some(Command::LRANGE),
                 _ => panic!("Not implemented!"),
             }
         } else if i == 4 {
@@ -191,13 +197,17 @@ pub fn parse_resp(s: &String) -> Request {
             value.push(splitted[i].into())
         }
     }
-    let req = Request {
-        command,
-        key,
-        value,
-    };
-    println!("{:?}", req);
-    req
+    match command {
+        Some(c) => {
+            let req = Request {
+                command: c,
+                key,
+                value,
+            };
+            return req;
+        }
+        None => panic!("Something went wrong with parsing RESP"),
+    }
 }
 
 pub fn construct_resp(stream: &mut TcpStream) -> String {
