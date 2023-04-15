@@ -11,3 +11,4 @@ An attemp to implement Redis from scratch in Rust.
 - LRANGE
 - INCR
 - INCRBY
+- DECRBY

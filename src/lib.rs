@@ -216,6 +216,45 @@ impl Sider {
                         }
                     }
                 }
+                Command::DECRBY => {
+                    let value = cache.get(&req.key);
+                    let amount = req.value[0].parse::<i64>().unwrap();
+                    match value {
+                        Some(v) => match v {
+                            DataType::String(v) => {
+                                let v = v.parse::<i64>();
+                                match v {
+                                    Ok(i) => {
+                                        let stringified_value = (i - amount).to_string();
+                                        cache.insert(
+                                            req.key,
+                                            DataType::String(stringified_value.clone()),
+                                        );
+                                        let response = format!(":{}\r\n", stringified_value);
+                                        stream.write_all(response.as_bytes()).unwrap();
+                                        stream.flush().unwrap();
+                                    }
+                                    Err(_) => {
+                                        let response = error_response.clone();
+                                        stream.write_all(response.as_bytes()).unwrap();
+                                        stream.flush().unwrap();
+                                    }
+                                }
+                            }
+                            _ => {
+                                let response = error_response.clone();
+                                stream.write_all(response.as_bytes()).unwrap();
+                                stream.flush().unwrap();
+                            }
+                        },
+                        None => {
+                            cache.insert(req.key, DataType::String((-amount).to_string()));
+                            let response = format!(":{}\r\n", -amount);
+                            stream.write_all(response.as_bytes()).unwrap();
+                            stream.flush().unwrap();
+                        }
+                    }
+                }
             }
         }
     }
@@ -231,6 +270,7 @@ pub enum Command {
     LRANGE,
     INCR,
     INCRBY,
+    DECRBY,
     // DECR,
 }
 #[derive(Debug)]
@@ -269,6 +309,7 @@ pub fn parse_resp(s: &String) -> Request {
                 "LRANGE" => command = Some(Command::LRANGE),
                 "INCR" => command = Some(Command::INCR),
                 "INCRBY" => command = Some(Command::INCRBY),
+                "DECRBY" => command = Some(Command::DECRBY),
                 other => {
                     panic!("{other} command not implemented!")
                 }
