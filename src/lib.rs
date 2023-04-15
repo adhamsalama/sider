@@ -270,7 +270,7 @@ pub fn parse_resp(s: &String) -> Request {
                 "INCR" => command = Some(Command::INCR),
                 "INCRBY" => command = Some(Command::INCRBY),
                 other => {
-                    panic!("Not {other} implemented!")
+                    panic!("{other} command not implemented!")
                 }
             }
         } else if i == 4 {
