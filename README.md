@@ -6,5 +6,8 @@ An attemp to implement Redis from scratch in Rust.
 
 - SET
 - GET
+- DEL
 - RPUSH
 - LRANGE
+- INCR
+- INCRBY
