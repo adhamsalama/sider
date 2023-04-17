@@ -1,6 +1,6 @@
 [package]
 name = "sider"
-description = "A Redis implementation in Rust."
+description = "A Multithreaded Redis clone written from scratch in Rust."
 license = "MIT"
 version = "0.1.0"
 edition = "2021"
