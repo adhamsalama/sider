@@ -10,12 +10,19 @@ use crate::{parser::parse_resp, Command, DataType, Request};
 static WRONG_TYPE_ERROR_RESPONSE: &str =
     "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n";
 
-pub fn process_request(mut stream: TcpStream, cache: Arc<Mutex<HashMap<String, DataType>>>) {
+pub fn process_request(
+    mut stream: TcpStream,
+    cache: Arc<Mutex<HashMap<String, DataType>>>,
+    timeout: Option<Duration>,
+) {
     loop {
         let cache = cache.clone();
-        stream
-            .set_read_timeout(Some(Duration::from_millis(5000)))
-            .unwrap();
+        match timeout {
+            Some(timeout) => {
+                stream.set_read_timeout(Some(timeout)).unwrap();
+            }
+            None => {}
+        }
         let mut buf_reader = BufReader::new(&mut stream);
         let mut first_line = String::new();
         let res = buf_reader.read_line(&mut first_line);

@@ -3,26 +3,37 @@ use std::{
     net::TcpListener,
     sync::{Arc, Mutex},
     thread,
+    time::Duration,
 };
 mod handler;
 mod parser;
 use handler::process_request;
+
 pub struct Sider {
     listener: TcpListener,
+    port: u32,
+    timeout: Option<Duration>,
 }
 impl Sider {
-    pub fn new() -> Sider {
-        let listener = TcpListener::bind("127.0.0.1:6379").unwrap();
-        Sider { listener }
+    pub fn new(port: u32, timeout: Option<Duration>) -> Sider {
+        let address = format!("127.0.0.1:{}", port);
+        let listener = TcpListener::bind(address).unwrap();
+        Sider {
+            port,
+            listener,
+            timeout,
+        }
     }
 
     pub fn start(&self) {
+        println!("Sider is running on port {}", self.port);
         let mut cache = Arc::new(Mutex::new(HashMap::new()));
+        let timeout = self.timeout;
         for stream in self.listener.incoming() {
             let cache = Arc::clone(&mut cache);
             thread::spawn(move || {
                 let stream = stream.unwrap();
-                return process_request(stream, cache);
+                return process_request(stream, cache, timeout);
             });
         }
     }
