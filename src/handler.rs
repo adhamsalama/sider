@@ -7,6 +7,8 @@ use std::{
 };
 
 use crate::{parser::parse_resp, Command, DataType, Request};
+static WRONG_TYPE_ERROR_RESPONSE: &str =
+    "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n";
 
 pub fn process_request(mut stream: TcpStream, cache: Arc<Mutex<HashMap<String, DataType>>>) {
     loop {
@@ -49,253 +51,262 @@ pub fn process_request(mut stream: TcpStream, cache: Arc<Mutex<HashMap<String, D
 }
 
 pub fn get_response(cache: Arc<Mutex<HashMap<String, DataType>>>, req: &Request) -> String {
-    let error_response = "-WRONGTYPE Operation against a key holding the wrong kind of value\r\n";
     let mut cache = cache.lock().unwrap();
     match req.command {
-        Command::SET => {
-            let value = req.value[0].clone();
-            cache.insert(req.key.clone(), DataType::String(value));
-            let response = "+OK\r\n".to_string();
-            response
-        }
-        Command::GET => {
-            let request_value = cache.get(&req.key);
-            match request_value {
-                Some(value) => match value {
-                    DataType::String(value) => {
-                        let response = format!("${}\r\n{}\r\n", value.len(), value);
-                        return response;
-                    }
+        Command::SET => handle_set(req, &mut cache),
+        Command::GET => handle_get(req, &mut cache),
+        Command::RPUSH => handle_rpush(req, &mut cache),
+        Command::LRANGE => handle_lrange(req, &mut cache),
+        Command::DEL => handle_del(req, &mut cache),
+        Command::INCR => handle_incr(req, &mut cache),
+        Command::INCRBY => handle_incrby(req, &mut cache),
+        Command::DECR => handle_decr(req, &mut cache),
+        Command::DECRBY => handle_decrby(req, &mut cache),
+        Command::CONFIG => handle_config(req, &mut cache),
+        Command::COMMAND => handle_command(req, &mut cache),
+    }
+}
 
-                    _ => {
-                        let response = error_response.clone().to_string();
-                        return response;
-                    }
-                },
-                None => {
-                    let response = "$-1\r\n".to_string();
-                    return response;
-                }
-            }
-        }
-        Command::RPUSH => {
-            let value = cache.get_mut(&req.key);
-            match value {
-                Some(existing) => match existing {
-                    DataType::List(v) => {
-                        for value in &req.value {
-                            v.push(value.to_string());
-                        }
-                        let response = format!(":{}\r\n", v.len());
-                        return response;
-                    }
-                    _ => {
-                        let response = error_response.to_string();
-                        return response;
-                    }
-                },
-                None => {
-                    let size = req.value.len();
-                    cache.insert(req.key.clone(), DataType::List(req.value.clone()));
-                    let response = format!(":{}\r\n", size);
-                    return response;
-                }
-            }
-        }
-        Command::LRANGE => {
-            let value = cache.get(&req.key);
-            match value {
-                Some(existing) => match existing {
-                    DataType::List(value) => {
-                        let start = req.value[0].parse::<usize>().unwrap();
-                        let end = req.value[1].parse::<i64>().unwrap();
-                        let slice: &[String];
-                        if end == -1 {
-                            slice = &value[start..];
-                        } else {
-                            let mut end = end + 1;
-                            if end >= value.len().try_into().unwrap() {
-                                end = value.len().try_into().unwrap();
-                            }
-                            slice = &value[start..end.try_into().unwrap()];
-                        }
-                        let mut response = format!("*{}\r\n", slice.len());
-                        for value in slice {
-                            response = format!("{}${}\r\n{}\r\n", response, value.len(), value);
-                        }
-                        return response;
-                    }
-                    _ => {
-                        let response = error_response.clone().to_string();
-                        return response;
-                    }
-                },
+pub fn handle_set(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = req.value[0].clone();
+    cache.insert(req.key.clone(), DataType::String(value));
+    let response = "+OK\r\n".to_string();
+    response
+}
 
-                None => {
-                    let response = "*0\r\n".to_string();
-                    return response;
-                }
+pub fn handle_get(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let request_value = cache.get(&req.key);
+    match request_value {
+        Some(value) => match value {
+            DataType::String(value) => {
+                let response = format!("${}\r\n{}\r\n", value.len(), value);
+                return response;
             }
-        }
-        Command::DEL => {
-            let key_to_delete = cache.get(&req.key);
-            match key_to_delete {
-                Some(_) => {
-                    cache.remove(&req.key);
-                    let response = ":1\r\n".to_string();
-                    return response;
-                }
-                None => {
-                    let response = ":0\r\n".to_string();
-                    return response;
-                }
+
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                return response;
             }
-        }
-        Command::INCR => {
-            let value = cache.get(&req.key);
-            match value {
-                Some(v) => match v {
-                    DataType::String(v) => {
-                        let v = v.parse::<i64>();
-                        match v {
-                            Ok(i) => {
-                                let stringified_value = (i + 1).to_string();
-                                cache.insert(
-                                    req.key.clone(),
-                                    DataType::String(stringified_value.clone()),
-                                );
-                                let response = format!(":{}\r\n", stringified_value);
-                                return response;
-                            }
-                            Err(_) => {
-                                let response = error_response.clone().to_string();
-                                return response;
-                            }
-                        }
-                    }
-                    _ => {
-                        let response = error_response.clone().to_string();
-                        return response;
-                    }
-                },
-                None => {
-                    cache.insert(req.key.clone(), DataType::String(String::from("1")));
-                    let response = ":1\r\n".to_string();
-                    return response;
-                }
-            }
-        }
-        Command::INCRBY => {
-            let value = cache.get(&req.key);
-            let amount = req.value[0].parse::<i64>().unwrap();
-            match value {
-                Some(v) => match v {
-                    DataType::String(v) => {
-                        let v = v.parse::<i64>();
-                        match v {
-                            Ok(i) => {
-                                let stringified_value = (i + amount).to_string();
-                                cache.insert(
-                                    req.key.clone(),
-                                    DataType::String(stringified_value.clone()),
-                                );
-                                let response = format!(":{}\r\n", stringified_value);
-                                return response;
-                            }
-                            Err(_) => {
-                                let response = error_response.clone().to_string();
-                                return response;
-                            }
-                        }
-                    }
-                    _ => {
-                        let response = error_response.clone().to_string();
-                        return response;
-                    }
-                },
-                None => {
-                    cache.insert(req.key.clone(), DataType::String(amount.to_string()));
-                    let response = format!(":{amount}\r\n");
-                    return response;
-                }
-            }
-        }
-        Command::DECR => {
-            let value = cache.get(&req.key);
-            match value {
-                Some(v) => match v {
-                    DataType::String(v) => {
-                        let v = v.parse::<i64>();
-                        match v {
-                            Ok(i) => {
-                                let stringified_value = (i - 1).to_string();
-                                cache.insert(
-                                    req.key.clone(),
-                                    DataType::String(stringified_value.clone()),
-                                );
-                                let response = format!(":{}\r\n", stringified_value);
-                                response
-                            }
-                            Err(_) => {
-                                let response = error_response.clone().to_string();
-                                return response;
-                            }
-                        }
-                    }
-                    _ => {
-                        let response = error_response.clone().to_string();
-                        return response;
-                    }
-                },
-                None => {
-                    cache.insert(req.key.clone(), DataType::String(String::from("-1")));
-                    let response = ":-1\r\n".to_string();
-                    response
-                }
-            }
-        }
-        Command::DECRBY => {
-            let value = cache.get(&req.key);
-            let amount = req.value[0].parse::<i64>().unwrap();
-            match value {
-                Some(v) => match v {
-                    DataType::String(v) => {
-                        let v = v.parse::<i64>();
-                        match v {
-                            Ok(i) => {
-                                let stringified_value = (i - amount).to_string();
-                                cache.insert(
-                                    req.key.clone(),
-                                    DataType::String(stringified_value.clone()),
-                                );
-                                let response = format!(":{}\r\n", stringified_value);
-                                return response;
-                            }
-                            Err(_) => {
-                                let response = error_response.clone().to_string();
-                                return response;
-                            }
-                        }
-                    }
-                    _ => {
-                        let response = error_response.clone().to_string();
-                        return response;
-                    }
-                },
-                None => {
-                    cache.insert(req.key.clone(), DataType::String((-amount).to_string()));
-                    let response = format!(":{}\r\n", -amount);
-                    return response;
-                }
-            }
-        }
-        Command::CONFIG => {
-            let response = ":0\r\n".to_string();
-            return response;
-        }
-        Command::COMMAND => {
-            let response = ":0\r\n".to_string();
+        },
+        None => {
+            let response = "$-1\r\n".to_string();
             return response;
         }
     }
+}
+
+pub fn handle_rpush(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = cache.get_mut(&req.key);
+    match value {
+        Some(existing) => match existing {
+            DataType::List(v) => {
+                for value in &req.value {
+                    v.push(value.to_string());
+                }
+                let response = format!(":{}\r\n", v.len());
+                response
+            }
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.to_string();
+                response
+            }
+        },
+        None => {
+            let size = req.value.len();
+            cache.insert(req.key.clone(), DataType::List(req.value.clone()));
+            let response = format!(":{}\r\n", size);
+            response
+        }
+    }
+}
+
+pub fn handle_lrange(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = cache.get(&req.key);
+    match value {
+        Some(existing) => match existing {
+            DataType::List(value) => {
+                let start = req.value[0].parse::<usize>().unwrap();
+                let end = req.value[1].parse::<i64>().unwrap();
+                let slice: &[String];
+                if end == -1 {
+                    slice = &value[start..];
+                } else {
+                    let mut end = end + 1;
+                    if end >= value.len().try_into().unwrap() {
+                        end = value.len().try_into().unwrap();
+                    }
+                    slice = &value[start..end.try_into().unwrap()];
+                }
+                let mut response = format!("*{}\r\n", slice.len());
+                for value in slice {
+                    response = format!("{}${}\r\n{}\r\n", response, value.len(), value);
+                }
+                return response;
+            }
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                return response;
+            }
+        },
+
+        None => {
+            let response = "*0\r\n".to_string();
+            return response;
+        }
+    }
+}
+
+pub fn handle_del(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let key_to_delete = cache.get(&req.key);
+    match key_to_delete {
+        Some(_) => {
+            cache.remove(&req.key);
+            let response = ":1\r\n".to_string();
+            response
+        }
+        None => {
+            let response = ":0\r\n".to_string();
+            response
+        }
+    }
+}
+
+pub fn handle_incr(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = cache.get(&req.key);
+    match value {
+        Some(v) => match v {
+            DataType::String(v) => {
+                let v = v.parse::<i64>();
+                match v {
+                    Ok(i) => {
+                        let stringified_value = (i + 1).to_string();
+                        cache.insert(req.key.clone(), DataType::String(stringified_value.clone()));
+                        let response = format!(":{}\r\n", stringified_value);
+                        response
+                    }
+                    Err(_) => {
+                        let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                        response
+                    }
+                }
+            }
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                response
+            }
+        },
+        None => {
+            cache.insert(req.key.clone(), DataType::String(String::from("1")));
+            let response = ":1\r\n".to_string();
+            response
+        }
+    }
+}
+
+pub fn handle_incrby(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = cache.get(&req.key);
+    let amount = req.value[0].parse::<i64>().unwrap();
+    match value {
+        Some(v) => match v {
+            DataType::String(v) => {
+                let v = v.parse::<i64>();
+                match v {
+                    Ok(i) => {
+                        let stringified_value = (i + amount).to_string();
+                        cache.insert(req.key.clone(), DataType::String(stringified_value.clone()));
+                        let response = format!(":{}\r\n", stringified_value);
+                        response
+                    }
+                    Err(_) => {
+                        let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                        response
+                    }
+                }
+            }
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                response
+            }
+        },
+        None => {
+            cache.insert(req.key.clone(), DataType::String(amount.to_string()));
+            let response = format!(":{amount}\r\n");
+            response
+        }
+    }
+}
+
+pub fn handle_decr(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = cache.get(&req.key);
+    match value {
+        Some(v) => match v {
+            DataType::String(v) => {
+                let v = v.parse::<i64>();
+                match v {
+                    Ok(i) => {
+                        let stringified_value = (i - 1).to_string();
+                        cache.insert(req.key.clone(), DataType::String(stringified_value.clone()));
+                        let response = format!(":{}\r\n", stringified_value);
+                        response
+                    }
+                    Err(_) => {
+                        let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                        response
+                    }
+                }
+            }
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                response
+            }
+        },
+        None => {
+            cache.insert(req.key.clone(), DataType::String(String::from("-1")));
+            let response = ":-1\r\n".to_string();
+            response
+        }
+    }
+}
+
+pub fn handle_decrby(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+    let value = cache.get(&req.key);
+    let amount = req.value[0].parse::<i64>().unwrap();
+    match value {
+        Some(v) => match v {
+            DataType::String(v) => {
+                let v = v.parse::<i64>();
+                match v {
+                    Ok(i) => {
+                        let stringified_value = (i - amount).to_string();
+                        cache.insert(req.key.clone(), DataType::String(stringified_value.clone()));
+                        let response = format!(":{}\r\n", stringified_value);
+                        response
+                    }
+                    Err(_) => {
+                        let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                        response
+                    }
+                }
+            }
+            _ => {
+                let response = WRONG_TYPE_ERROR_RESPONSE.clone().to_string();
+                response
+            }
+        },
+        None => {
+            cache.insert(req.key.clone(), DataType::String((-amount).to_string()));
+            let response = format!(":{}\r\n", -amount);
+            response
+        }
+    }
+}
+
+pub fn handle_config(_: &Request, _: &mut HashMap<String, DataType>) -> String {
+    let response = ":0\r\n".to_string();
+    response
+}
+
+pub fn handle_command(_: &Request, _: &mut HashMap<String, DataType>) -> String {
+    let response = ":0\r\n".to_string();
+    response
 }
