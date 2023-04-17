@@ -17,13 +17,12 @@ impl Sider {
     }
 
     pub fn start(&self) {
-        let cache: HashMap<String, DataType> = HashMap::new();
-        let mut cache = Arc::new(Mutex::new(cache));
+        let mut cache = Arc::new(Mutex::new(HashMap::new()));
         for stream in self.listener.incoming() {
             let cache = Arc::clone(&mut cache);
             thread::spawn(move || {
                 let stream = stream.unwrap();
-                return construct_resp(stream, cache);
+                return process_request(stream, cache);
             });
         }
     }
@@ -291,7 +290,7 @@ pub fn get_response(cache: Arc<Mutex<HashMap<String, DataType>>>, req: &Request)
             }
         }
         Command::CONFIG => {
-            let response = "*2\r\n$4\r\nSAVE\r\n$17\r\n3600 1 300 100 60 10000\r\n".to_string();
+            let response = ":0\r\n".to_string();
             return response;
         }
         Command::COMMAND => {
@@ -356,7 +355,7 @@ pub fn parse_resp(s: &String) -> Request {
     }
 }
 
-pub fn construct_resp(mut stream: TcpStream, cache: Arc<Mutex<HashMap<String, DataType>>>) {
+pub fn process_request(mut stream: TcpStream, cache: Arc<Mutex<HashMap<String, DataType>>>) {
     loop {
         let cache = cache.clone();
         stream
