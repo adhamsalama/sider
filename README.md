@@ -56,4 +56,20 @@ SET: 40041.64 requests per second
 GET: 40650.41 requests per second
 ```
 
+In comparsion to Redis (also on my machine):
+
+```
+redis-benchmark -n 100000 -c 100 -t set,get
+
+SET: 34246.57 requests per second
+GET: 34364.26 requests per second
+```
+
+```
+redis-benchmark -n 500000 -c 1000 -t set,get
+
+SET: 31527.84 requests per second
+GET: 32032.80 requests per second
+```
+
 Performance may vary depending on the machine you run the benchmarks on.
