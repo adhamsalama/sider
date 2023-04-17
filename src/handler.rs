@@ -17,11 +17,8 @@ pub fn process_request(
 ) {
     loop {
         let cache = cache.clone();
-        match timeout {
-            Some(timeout) => {
-                stream.set_read_timeout(Some(timeout)).unwrap();
-            }
-            None => {}
+        if let Some(timeout) = timeout {
+            stream.set_read_timeout(Some(timeout)).unwrap();
         }
         let mut buf_reader = BufReader::new(&mut stream);
         let mut first_line = String::new();
