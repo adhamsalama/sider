@@ -13,7 +13,7 @@ fn parse_args(args: Vec<String>) -> (u32, Option<Duration>) {
     let mut timeout: Option<Duration> = None;
     for (index, arg) in args.iter().enumerate() {
         if arg == "-p" {
-            let parsed_port = args[index + 1].clone().parse();
+            let parsed_port = args[index + 1].parse();
             match parsed_port {
                 Ok(p) => port = p,
                 Err(_) => {
@@ -27,7 +27,7 @@ fn parse_args(args: Vec<String>) -> (u32, Option<Duration>) {
             }
         }
         if arg == "-t" {
-            let parsed_timeout = args[index + 1].clone().parse();
+            let parsed_timeout = args[index + 1].parse();
             match parsed_timeout {
                 Ok(t) => timeout = Some(Duration::from_millis(t)),
                 Err(_) => {
