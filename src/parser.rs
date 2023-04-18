@@ -22,6 +22,7 @@ pub fn parse_resp(s: &String) -> Request {
                 "INCRBY" => command = Some(Command::INCRBY),
                 "DECR" => command = Some(Command::DECR),
                 "DECRBY" => command = Some(Command::DECRBY),
+                "EXPIRE" => command = Some(Command::EXPIRE),
                 "CONFIG" => command = Some(Command::CONFIG),
                 "COMMAND" => command = Some(Command::COMMAND),
                 other => {
