@@ -3,6 +3,7 @@ use std::{
     io::{BufRead, BufReader, Write},
     net::TcpStream,
     sync::{Arc, Mutex},
+    thread,
     time::Duration,
 };
 
@@ -55,30 +56,32 @@ pub fn process_request(
 }
 
 pub fn get_response(cache: Arc<Mutex<HashMap<String, DataType>>>, req: &Request) -> String {
-    let mut cache = cache.lock().unwrap();
     match req.command {
-        Command::SET => handle_set(req, &mut cache),
-        Command::GET => handle_get(req, &mut cache),
-        Command::RPUSH => handle_rpush(req, &mut cache),
-        Command::LRANGE => handle_lrange(req, &mut cache),
-        Command::DEL => handle_del(req, &mut cache),
-        Command::INCR => handle_incr(req, &mut cache),
-        Command::INCRBY => handle_incrby(req, &mut cache),
-        Command::DECR => handle_decr(req, &mut cache),
-        Command::DECRBY => handle_decrby(req, &mut cache),
-        Command::CONFIG => handle_config(req, &mut cache),
-        Command::COMMAND => handle_command(req, &mut cache),
+        Command::SET => handle_set(req, cache),
+        Command::GET => handle_get(req, cache),
+        Command::RPUSH => handle_rpush(req, cache),
+        Command::LRANGE => handle_lrange(req, cache),
+        Command::DEL => handle_del(req, cache),
+        Command::INCR => handle_incr(req, cache),
+        Command::INCRBY => handle_incrby(req, cache),
+        Command::DECR => handle_decr(req, cache),
+        Command::DECRBY => handle_decrby(req, cache),
+        Command::EXPIRE => handle_expire(req, cache),
+        Command::CONFIG => handle_config(),
+        Command::COMMAND => handle_command(),
     }
 }
 
-pub fn handle_set(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_set(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let value = req.value[0].clone();
     cache.insert(req.key.clone(), DataType::String(value));
     let response = "+OK\r\n".to_string();
     response
 }
 
-pub fn handle_get(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_get(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let cache = cache.lock().unwrap();
     let request_value = cache.get(&req.key);
     match request_value {
         Some(value) => match value {
@@ -99,7 +102,8 @@ pub fn handle_get(req: &Request, cache: &mut HashMap<String, DataType>) -> Strin
     }
 }
 
-pub fn handle_rpush(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_rpush(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let value = cache.get_mut(&req.key);
     match value {
         Some(existing) => match existing {
@@ -124,7 +128,8 @@ pub fn handle_rpush(req: &Request, cache: &mut HashMap<String, DataType>) -> Str
     }
 }
 
-pub fn handle_lrange(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_lrange(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let cache = cache.lock().unwrap();
     let value = cache.get(&req.key);
     match value {
         Some(existing) => match existing {
@@ -160,7 +165,8 @@ pub fn handle_lrange(req: &Request, cache: &mut HashMap<String, DataType>) -> St
     }
 }
 
-pub fn handle_del(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_del(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let key_to_delete = cache.get(&req.key);
     match key_to_delete {
         Some(_) => {
@@ -175,7 +181,8 @@ pub fn handle_del(req: &Request, cache: &mut HashMap<String, DataType>) -> Strin
     }
 }
 
-pub fn handle_incr(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_incr(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let value = cache.get(&req.key);
     match value {
         Some(v) => match v {
@@ -207,7 +214,8 @@ pub fn handle_incr(req: &Request, cache: &mut HashMap<String, DataType>) -> Stri
     }
 }
 
-pub fn handle_incrby(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_incrby(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let value = cache.get(&req.key);
     let amount = req.value[0].parse::<i64>().unwrap();
     match value {
@@ -240,7 +248,8 @@ pub fn handle_incrby(req: &Request, cache: &mut HashMap<String, DataType>) -> St
     }
 }
 
-pub fn handle_decr(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_decr(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let value = cache.get(&req.key);
     match value {
         Some(v) => match v {
@@ -272,7 +281,8 @@ pub fn handle_decr(req: &Request, cache: &mut HashMap<String, DataType>) -> Stri
     }
 }
 
-pub fn handle_decrby(req: &Request, cache: &mut HashMap<String, DataType>) -> String {
+pub fn handle_decrby(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.lock().unwrap();
     let value = cache.get(&req.key);
     let amount = req.value[0].parse::<i64>().unwrap();
     match value {
@@ -305,12 +315,36 @@ pub fn handle_decrby(req: &Request, cache: &mut HashMap<String, DataType>) -> St
     }
 }
 
-pub fn handle_config(_: &Request, _: &mut HashMap<String, DataType>) -> String {
+pub fn handle_config() -> String {
     let response = ":0\r\n".to_string();
     response
 }
 
-pub fn handle_command(_: &Request, _: &mut HashMap<String, DataType>) -> String {
+pub fn handle_command() -> String {
     let response = ":0\r\n".to_string();
     response
+}
+
+pub fn handle_expire(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+    let key = req.key.clone();
+    let seconds = req.value[0].parse::<u64>().unwrap();
+    let unlocked_cache = cache.lock().unwrap();
+    let value = unlocked_cache.get(&req.key).clone();
+    let cloned_cache = Arc::clone(&cache);
+    thread::spawn(move || {
+        thread::sleep(Duration::from_secs(seconds));
+        let mut cache = cloned_cache.lock().unwrap();
+        let value = cache.get(&key).clone();
+        match value {
+            Some(_) => {
+                cache.remove(&key);
+            }
+            None => {}
+        }
+    });
+
+    match value {
+        Some(_) => ":1\r\n".to_string(),
+        None => ":0\r\n".to_string(),
+    }
 }

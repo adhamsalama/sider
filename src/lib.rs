@@ -49,6 +49,7 @@ pub enum Command {
     INCRBY,
     DECR,
     DECRBY,
+    EXPIRE,
     CONFIG,
     COMMAND,
 }

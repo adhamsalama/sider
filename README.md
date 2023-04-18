@@ -37,6 +37,7 @@ cargo install sider
 - INCRBY
 - DECR
 - DECRBY
+- EXPIRE
 
 ## Benchmarks
 
