@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use crate::{Command, Request};
 
 pub fn parse_resp(s: &String) -> Request {
@@ -38,9 +40,16 @@ pub fn parse_resp(s: &String) -> Request {
         }
     }
     match command {
-        Some(c) => {
+        Some(command) => {
+            if let Command::SUBSCRIBE = command {
+                value.insert(0, key);
+                // Remove duplicates as it's the official Redis behavior
+                let set: HashSet<_> = value.drain(..).collect();
+                value.extend(set);
+                key = String::new();
+            }
             let req = Request {
-                command: c,
+                command,
                 key,
                 value,
             };
