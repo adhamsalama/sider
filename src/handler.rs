@@ -398,20 +398,21 @@ pub fn handle_subscribe(
     stream: TcpStream,
 ) -> String {
     let mut bus = bus.write().unwrap();
-    let value = bus.get_mut(&req.key);
-    let topic_name = req.key.clone();
-    let topic_name_len = topic_name.len();
-
-    let response = format!("*3\r\n$9\r\nsubscribe\r\n${topic_name_len}\r\n{topic_name}\r\n:1\r\n");
-    // let stream: Arc<&mut TcpStream> = Arc::clone(&stream);
-    match value {
-        Some(streams) => {
-            streams.push(stream);
-            response
-        }
-        None => {
-            bus.insert(topic_name, vec![stream]);
-            response
-        }
+    let topics = &req.value;
+    let mut response = String::new();
+    for topic in topics {
+        let channel = bus.get_mut(topic);
+        let stream = stream.try_clone().unwrap();
+        let topic_name_len = topic.len();
+        response += &format!("*3\r\n$9\r\nsubscribe\r\n${topic_name_len}\r\n{topic}\r\n:1\r\n");
+        match channel {
+            Some(streams) => {
+                streams.push(stream);
+            }
+            None => {
+                bus.insert(topic.to_string(), vec![stream]);
+            }
+        };
     }
+    response
 }
