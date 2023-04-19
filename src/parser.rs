@@ -25,6 +25,8 @@ pub fn parse_resp(s: &String) -> Request {
                 "EXPIRE" => command = Some(Command::EXPIRE),
                 "CONFIG" => command = Some(Command::CONFIG),
                 "COMMAND" => command = Some(Command::COMMAND),
+                "PUBLISH" => command = Some(Command::PUBLISH),
+                "SUBSCRIBE" => command = Some(Command::SUBSCRIBE),
                 other => {
                     panic!("{other} command not implemented!");
                 }
@@ -35,7 +37,6 @@ pub fn parse_resp(s: &String) -> Request {
             value.push(splitted[i].into())
         }
     }
-    // println!("{key}, {:?}", value);
     match command {
         Some(c) => {
             let req = Request {
