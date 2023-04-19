@@ -46,31 +46,15 @@ On my machine which has an i5-9300H Intel CPU.
 ```
 redis-benchmark -n 100000 -c 100 -t set,get
 
-SET: 42844.90 requests per second
-GET: 43840.42 requests per second
+SET: 79365.08 requests per second
+GET: 82034.45 requests per second
 ```
 
 ```
 redis-benchmark -n 500000 -c 1000 -t set,get
 
-SET: 40041.64 requests per second
-GET: 40650.41 requests per second
-```
-
-In comparsion to Redis (also on my machine):
-
-```
-redis-benchmark -n 100000 -c 100 -t set,get
-
-SET: 34246.57 requests per second
-GET: 34364.26 requests per second
-```
-
-```
-redis-benchmark -n 500000 -c 1000 -t set,get
-
-SET: 31527.84 requests per second
-GET: 32032.80 requests per second
+SET: 56433.41 requests per second
+GET: 57077.62 requests per second
 ```
 
 Performance may vary depending on the machine you run the benchmarks on.
