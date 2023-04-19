@@ -28,12 +28,14 @@ impl Sider {
     pub fn start(&self) {
         println!("Sider is running on port {}", self.port);
         let mut cache = Arc::new(RwLock::new(HashMap::new()));
+        let bus = Arc::new(RwLock::new(HashMap::new()));
         let timeout = self.timeout;
         for stream in self.listener.incoming() {
             let cache = Arc::clone(&mut cache);
+            let bus = Arc::clone(&bus);
             thread::spawn(move || {
                 let stream = stream.unwrap();
-                return process_request(stream, cache, timeout);
+                return process_request(stream, cache, bus, timeout);
             });
         }
     }
@@ -50,6 +52,8 @@ pub enum Command {
     DECR,
     DECRBY,
     EXPIRE,
+    PUBLISH,
+    SUBSCRIBE,
     CONFIG,
     COMMAND,
 }
