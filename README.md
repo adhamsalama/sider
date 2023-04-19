@@ -38,6 +38,8 @@ cargo install sider
 - DECR
 - DECRBY
 - EXPIRE
+- PUBLISH
+- SUBSCRIBE
 
 ## Benchmarks
 
