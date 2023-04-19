@@ -2,7 +2,7 @@ use std::{
     collections::HashMap,
     io::{BufRead, BufReader, Write},
     net::TcpStream,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
     thread,
     time::Duration,
 };
@@ -13,7 +13,7 @@ static WRONG_TYPE_ERROR_RESPONSE: &str =
 
 pub fn process_request(
     mut stream: TcpStream,
-    cache: Arc<Mutex<HashMap<String, DataType>>>,
+    cache: Arc<RwLock<HashMap<String, DataType>>>,
     timeout: Option<Duration>,
 ) {
     loop {
@@ -55,7 +55,7 @@ pub fn process_request(
     }
 }
 
-pub fn get_response(cache: Arc<Mutex<HashMap<String, DataType>>>, req: &Request) -> String {
+pub fn get_response(cache: Arc<RwLock<HashMap<String, DataType>>>, req: &Request) -> String {
     match req.command {
         Command::SET => handle_set(req, cache),
         Command::GET => handle_get(req, cache),
@@ -72,16 +72,16 @@ pub fn get_response(cache: Arc<Mutex<HashMap<String, DataType>>>, req: &Request)
     }
 }
 
-pub fn handle_set(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_set(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let value = req.value[0].clone();
     cache.insert(req.key.clone(), DataType::String(value));
     let response = "+OK\r\n".to_string();
     response
 }
 
-pub fn handle_get(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let cache = cache.lock().unwrap();
+pub fn handle_get(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let cache = cache.read().unwrap();
     let request_value = cache.get(&req.key);
     match request_value {
         Some(value) => match value {
@@ -102,8 +102,8 @@ pub fn handle_get(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -
     }
 }
 
-pub fn handle_rpush(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_rpush(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let value = cache.get_mut(&req.key);
     match value {
         Some(existing) => match existing {
@@ -128,8 +128,8 @@ pub fn handle_rpush(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>)
     }
 }
 
-pub fn handle_lrange(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let cache = cache.lock().unwrap();
+pub fn handle_lrange(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let cache = cache.read().unwrap();
     let value = cache.get(&req.key);
     match value {
         Some(existing) => match existing {
@@ -165,8 +165,8 @@ pub fn handle_lrange(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>
     }
 }
 
-pub fn handle_del(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_del(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let key_to_delete = cache.get(&req.key);
     match key_to_delete {
         Some(_) => {
@@ -181,8 +181,8 @@ pub fn handle_del(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -
     }
 }
 
-pub fn handle_incr(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_incr(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let value = cache.get(&req.key);
     match value {
         Some(v) => match v {
@@ -214,8 +214,8 @@ pub fn handle_incr(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) 
     }
 }
 
-pub fn handle_incrby(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_incrby(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let value = cache.get(&req.key);
     let amount = req.value[0].parse::<i64>().unwrap();
     match value {
@@ -248,8 +248,8 @@ pub fn handle_incrby(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>
     }
 }
 
-pub fn handle_decr(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_decr(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let value = cache.get(&req.key);
     match value {
         Some(v) => match v {
@@ -281,8 +281,8 @@ pub fn handle_decr(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) 
     }
 }
 
-pub fn handle_decrby(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
-    let mut cache = cache.lock().unwrap();
+pub fn handle_decrby(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
+    let mut cache = cache.write().unwrap();
     let value = cache.get(&req.key);
     let amount = req.value[0].parse::<i64>().unwrap();
     match value {
@@ -325,15 +325,15 @@ pub fn handle_command() -> String {
     response
 }
 
-pub fn handle_expire(req: &Request, cache: Arc<Mutex<HashMap<String, DataType>>>) -> String {
+pub fn handle_expire(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>>) -> String {
     let key = req.key.clone();
     let seconds = req.value[0].parse::<u64>().unwrap();
-    let unlocked_cache = cache.lock().unwrap();
+    let unlocked_cache = cache.read().unwrap();
     let value = unlocked_cache.get(&req.key).clone();
     let cloned_cache = Arc::clone(&cache);
     thread::spawn(move || {
         thread::sleep(Duration::from_secs(seconds));
-        let mut cache = cloned_cache.lock().unwrap();
+        let mut cache = cloned_cache.write().unwrap();
         let value = cache.get(&key).clone();
         match value {
             Some(_) => {

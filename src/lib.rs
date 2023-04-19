@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     net::TcpListener,
-    sync::{Arc, Mutex},
+    sync::{Arc, RwLock},
     thread,
     time::Duration,
 };
@@ -27,7 +27,7 @@ impl Sider {
 
     pub fn start(&self) {
         println!("Sider is running on port {}", self.port);
-        let mut cache = Arc::new(Mutex::new(HashMap::new()));
+        let mut cache = Arc::new(RwLock::new(HashMap::new()));
         let timeout = self.timeout;
         for stream in self.listener.incoming() {
             let cache = Arc::clone(&mut cache);
