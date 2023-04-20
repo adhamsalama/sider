@@ -26,6 +26,13 @@ Sider is published on crates.io, you can install it using cargo.
 cargo install sider
 ```
 
+You can also install it using Docker.
+
+```
+docker pull adham99/sider
+docker run -p 6379:6379 adham99/sider
+```
+
 ## Implemented commands (so far):
 
 - SET
