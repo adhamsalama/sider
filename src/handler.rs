@@ -162,7 +162,7 @@ pub fn handle_lrange(req: &Request, cache: Arc<RwLock<HashMap<String, DataType>>
                 }
                 let mut response = format!("*{}\r\n", slice.len());
                 for value in slice {
-                    response = format!("{}${}\r\n{}\r\n", response, value.len(), value);
+                    response.push_str(&format!("${}\r\n{}\r\n", value.len(), value));
                 }
                 return response;
             }
