@@ -60,7 +60,7 @@ GET: 82034.45 requests per second
 ```
 
 ```
-redis-benchmark -n 500000 -c 1000 -t set,get
+redis-benchmark -n 100000 -c 100 -t set,get
 
 SET: 56433.41 requests per second
 GET: 57077.62 requests per second
