@@ -58,7 +58,7 @@ redis-benchmark -n 100000 -c 100 -t set,get
 SET: 79365.08 requests per second
 GET: 82034.45 requests per second
 ```
-
+Official Redis performance:
 ```
 redis-benchmark -n 100000 -c 100 -t set,get
 
