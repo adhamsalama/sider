@@ -52,6 +52,7 @@ docker run -p 6379:6379 adham99/sider
 
 On my machine which has an i5-9300H Intel CPU.
 
+Sider performance:
 ```
 redis-benchmark -n 100000 -c 100 -t set,get
 
